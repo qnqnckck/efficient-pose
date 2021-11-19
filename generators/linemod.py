@@ -87,8 +87,8 @@ class LineModGenerator(Generator):
         self.class_to_name = {0: "object"}
         self.name_to_class = {"object": 0}
         self.name_to_mask_value = {"object": 255}
-        self.object_ids_to_class_labels = {self.object_id: 0}
-        self.class_labels_to_object_ids = {0: self.object_id}
+        self.object_ids_to_class_labels = {self.data_name: 0}
+        self.class_labels_to_object_ids = {0: self.data_name}
         
         #get all train or test data examples from the dataset in the given split
         if not "train" in kwargs or kwargs["train"]:
@@ -177,7 +177,7 @@ class LineModGenerator(Generator):
         name_to_model_3d_bboxes = dict()
         
         for object_id, class_label in object_ids_to_class_labels.items():
-            model_bbox = self.get_bbox_3d(all_models_dict[object_id])
+            model_bbox = self.get_bbox_3d(all_models_dict[data_name])
             class_to_model_3d_bboxes[class_label] = model_bbox
             name_to_model_3d_bboxes[class_to_name[class_label]] = model_bbox
             
