@@ -163,19 +163,6 @@ def create_generators(args):
             use_6DoF_augmentation = False,
             **common_args
         )
-    elif args.dataset_type == 'occlusion':
-        from generators.occlusion import OcclusionGenerator
-        
-        generator = OcclusionGenerator(
-            args.occlusion_path,
-            train = False,
-            shuffle_dataset = False,
-            shuffle_groups = False,
-            rotation_representation = args.rotation_representation,
-            use_colorspace_augmentation = False,
-            use_6DoF_augmentation = False,
-            **common_args
-        )
     else:
         raise ValueError('Invalid data type received: {}'.format(args.dataset_type))
 

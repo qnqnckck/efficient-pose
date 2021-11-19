@@ -42,7 +42,7 @@ class LineModGenerator(Generator):
     """
     def __init__(self, 
                  dataset_base_path,
-                 object_id,
+                 data_name,
                  image_extension = ".png",
                  shuffle_dataset = True,
                   symmetric_objects = {"glue", 11, "eggbox", 10}, #set with names and indices of symmetric objects
@@ -60,7 +60,7 @@ class LineModGenerator(Generator):
         self.dataset_base_path = dataset_base_path
         self.dataset_path = os.path.join(self.dataset_base_path, "data")
         self.model_path = os.path.join(self.dataset_base_path, "models")
-        self.object_id = object_id
+        self.data_name = data_name
         self.image_extension = image_extension
         self.shuffle_dataset = shuffle_dataset
         self.translation_parameter = 3
@@ -74,14 +74,14 @@ class LineModGenerator(Generator):
             return None
         
         #get dict with object ids as keys and object subdirs as values
-        self.object_paths_and_ids = {int(subdir): os.path.join(self.dataset_path, subdir) for subdir in os.listdir(self.dataset_path) if os.path.isdir(os.path.join(self.dataset_path, subdir))}
+        self.data_name_list = {str(subdir): os.path.join(self.dataset_path, subdir) for subdir in os.listdir(self.dataset_path) if os.path.isdir(os.path.join(self.dataset_path, subdir))}
         
-        if not self.object_id in self.object_paths_and_ids:
-            print("The given object id {} was not found in the dataset dir {}".format(self.object_id, self.dataset_path))
+        if not self.data_name in self.data_name_list:
+            print("The given data_name {} was not found in the dataset dir {}".format(self.data_name, self.dataset_path))
             return None
         
         #get path containing the data for the given object
-        self.object_path = self.object_paths_and_ids[self.object_id]
+        self.data_path = os.path.join("data",self. data_name)
         
         #set the class and name dict for mapping each other
         self.class_to_name = {0: "object"}
@@ -92,37 +92,24 @@ class LineModGenerator(Generator):
         
         #get all train or test data examples from the dataset in the given split
         if not "train" in kwargs or kwargs["train"]:
-            self.data_file = os.path.join(self.object_path, "train.txt")
+            self.data_file = os.path.join(self.data_path, "train.txt")
         else:
-            self.data_file = os.path.join(self.object_path, "test.txt")
+            self.data_file = os.path.join(self.data_path, "test.txt")
             
         self.data_examples = self.parse_examples(data_file = self.data_file)
         
-        #parse yaml files with ground truth annotations and infos about camera intrinsics and 3D BBox
-        self.gt_dict = self.parse_yaml(self.object_path)
-        self.info_dict = self.parse_yaml(self.object_path, filename = "info.yml")
-        self.all_models_dict = self.parse_yaml(self.model_path, filename = "models_info.yml")
-        #get the model with the given object id
-        self.model_dict = self.all_models_dict[self.object_id]
         #load the complete 3d model from the ply file
-        self.model_3d_points = self.load_model_ply(path_to_ply_file = os.path.join(self.model_path, "obj_{:02}.ply".format(self.object_id)))
+        self.model_3d_points = self.load_model_ply(path_to_ply_file = os.path.join("data", "{}.ply".format(self.data_name)))
         self.class_to_model_3d_points = {0: self.model_3d_points}
         self.name_to_model_3d_points = {"object": self.model_3d_points}
-        
-        #create dict with the class indices/names as keys and 3d model diameters as values
-        self.class_to_model_3d_diameters, self.name_to_model_3d_diameters = self.create_model_3d_diameters_dict(self.all_models_dict, self.object_ids_to_class_labels, self.class_to_name)
-        
-        #create dict with the class indices/names as keys and model 3d bboxes as values
-        self.class_to_model_3d_bboxes, self.name_to_model_3d_bboxes = self.create_model_3d_bboxes_dict(self.all_models_dict, self.object_ids_to_class_labels, self.class_to_name)
-        
+
         #get the final input and annotation infos for the base generator
-        self.image_paths, self.mask_paths, self.depth_paths, self.annotations, self.infos = self.prepare_dataset(self.object_path, self.data_examples, self.gt_dict, self.info_dict)
+        self.image_paths, self.mask_paths = self.prepare_dataset(self.object_path, self.data_examples)
         
         #shuffle dataset
         if self.shuffle_dataset:
-            self.image_paths, self.mask_paths, self.depth_paths, self.annotations, self.infos = self.shuffle_sequences(self.image_paths, self.mask_paths, self.depth_paths, self.annotations, self.infos)
-            
-        
+            self.image_paths, self.mask_paths = self.shuffle_sequences(self.image_paths, self.mask_paths)
+
         #init base class
         Generator.__init__(self, **kwargs)
         
@@ -329,21 +316,15 @@ class LineModGenerator(Generator):
         return points_3d
         
     
-    def prepare_dataset(self, object_path, data_examples, gt_dict, info_dict):
+    def prepare_dataset(self, object_path, data_examples):
         """
        Prepares the Linemod dataset and converts the data from the Linemod format to the EfficientPose format
         Args:
             object_path: path to the single Linemod object
             data_examples: List containing all data examples of the used dataset split (train or test)
-            gt_dict: Dictionary mapping the example id's to the corresponding ground truth data
-            info_dict: Dictionary mapping the example id's to the intrinsic camera parameters
         Returns:
             image_paths: List with all rgb image paths in the dataset split
             mask_paths: List with all segmentation mask paths in the dataset split
-            depth_paths: List with all depth image paths in the dataset split (Currently not used in EfficientPose)
-            annotations: List with all annotation dictionaries in the dataset split
-            infos: List with all info dictionaries (intrinsic camera parameters) in the dataset split
-    
         """
         all_images_path = os.path.join(object_path, "rgb")
         
@@ -351,43 +332,13 @@ class LineModGenerator(Generator):
         all_filenames = [filename for filename in os.listdir(all_images_path) if self.image_extension in filename and filename.replace(self.image_extension, "") in data_examples]
         image_paths = [os.path.join(all_images_path, filename) for filename in all_filenames]
         mask_paths = [img_path.replace("rgb", "mask") for img_path in image_paths]
-        depth_paths = [img_path.replace("rgb", "depth") for img_path in image_paths]
-        
+
         #parse the example ids for the gt dict from filenames
         example_ids = [int(filename.split(".")[0]) for filename in all_filenames]
-        filtered_gt_lists = [gt_dict[key] for key in example_ids]#creates a list containing lists of all annotations per image. usually one element but at object id 2 is also the occlusion dataset included
-        filtered_gts = []
-        for gt_list in filtered_gt_lists:
-            #search all annotations with the given object id
-            all_annos = [anno for anno in gt_list if anno["obj_id"] == self.object_id]
-            if len(all_annos) <= 0:
-                print("\nError: No annotation found!")
-                filtered_gts.append(None)
-            elif len(all_annos) > 1:
-                print("\nWarning: found more than one annotation. using only the first annotation")
-                filtered_gts.append(all_annos[0])
-            else:
-                filtered_gts.append(all_annos[0])
-                
-        filtered_infos = [info_dict[key] for key in example_ids] #filter info dicts containing camera calibration etc analogue to gts
         
-        #insert camera calibration as 3x3 numpy array in the infos
-        infos = self.insert_np_cam_calibration(filtered_infos)
-        
-        #convert the gt into the base generator format
-        annotations = self.convert_gt(filtered_gts, infos, mask_paths)
-        
-        # max_angle = max(annotations, key = lambda dic: np.max(dic["rotations"]))
-        # min_angle = min(annotations, key = lambda dic: np.min(dic["rotations"]))
-        # print("\n\n\nmax angle: ", max_angle, "\nmin angle: ", min_angle, "\n\n")
-        
-        # max_t = max(annotations, key = lambda dic: np.max(dic["translations"]))
-        # min_t = min(annotations, key = lambda dic: np.min(dic["translations"]))
-        # print("\n\n\nmax translation: ", max_t, "\nmin translation: ", min_t, "\n\n")
-        
-        return image_paths, mask_paths, depth_paths, annotations, infos
+        return image_paths, mask_paths
     
-    
+
     def insert_np_cam_calibration(self, filtered_infos):
         """
        Converts the intrinsic camera parameters in each dict of the given list into a numpy (3, 3) camera matrix
@@ -395,13 +346,13 @@ class LineModGenerator(Generator):
             filtered_infos: List with all dictionaries containing the intrinsic camera parameters
         Returns:
             filtered_infos: List with all dictionaries containing the intrinsic camera parameters also as a numpy (3, 3) array
-    
+
         """
         for info in filtered_infos:
             info["cam_K_np"] = np.reshape(np.array(info["cam_K"]), newshape = (3, 3))
-        
+
         return filtered_infos
-    
+
     
     def convert_gt(self, gt_list, info_list, mask_paths):
         """
