@@ -103,7 +103,7 @@ class LineModGenerator(Generator):
         self.name_to_model_3d_points = {"object": self.model_3d_points}
 
         #get the final input and annotation infos for the base generator
-        self.image_paths, self.mask_paths = self.prepare_dataset(self.object_path, self.data_examples)
+        self.image_paths, self.mask_paths = self.prepare_dataset(self.data_path, self.data_examples)
         
         #shuffle dataset
         if self.shuffle_dataset:
