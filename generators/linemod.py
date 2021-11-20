@@ -14,7 +14,7 @@ or at http://creativecommons.org/licenses/by-nc/4.0/.
 
 Based on:
 
-Keras EfficientDet implementation (https://github.com/xuannianz/EfficientDet) licensed under the Apache License, Version 2.0
+Keras EfficientDet adimplementation (https://github.com/xuannianz/EfficientDet) licensed under the Apache License, Version 2.0
 ---------------------------------------------------------------------------------------------------------------------------------
 The official EfficientDet implementation (https://github.com/google/automl) licensed under the Apache License, Version 2.0
 ---------------------------------------------------------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ from generators.common import Generator
 
 
 #Generator for the LINEMOD Dataset downloaded from here: https://github.com/j96w/DenseFusion
-class LineModGenerator(Generator):
+class LineModGenerator(Generator): 
     """
     Generator for the Linemod dataset
 
@@ -98,7 +98,7 @@ class LineModGenerator(Generator):
         self.data_examples = self.parse_examples(data_file = self.data_file)
         
         #load the complete 3d model from the ply file
-        self.model_3d_points = self.load_model_ply(path_to_ply_file = os.path.join("data", "{}.ply".format(self.data_name)))
+        self.model_3d_points = self.load_model_ply(path_to_ply_file = os.path.join("data", self.data_name, "{}.ply".format(self.data_name)))
         self.class_to_model_3d_points = {0: self.model_3d_points}
         self.name_to_model_3d_points = {"object": self.model_3d_points}
 
